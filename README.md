@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Smart Task Priority Predictor
 
 A Python Flask web application that predicts task priority using a Decision Tree Classifier and a rule-based scoring engine.
@@ -95,3 +96,6 @@ python -m pytest tests/ -v
 | Frontend | HTML + Bootstrap 5 + CSS |
 | Charts | Matplotlib |
 | Testing | Pytest |
+=======
+# Smart-Task-Priority-Predictor-
+>>>>>>> 14849c7caa5b072f28056f8d61f02cad0ce76cf5
