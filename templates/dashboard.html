@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – Smart Task Priority Predictor{% endblock %}
+
+{% block content %}
+<!-- ── Top Greeting & Actions ── -->
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
+  <div>
+    <h2 class="fw-bold mb-1 tracking-tight">
+      <i class="bi bi-speedometer2 text-primary me-2"></i>Executive Priority Dashboard
+    </h2>
+    <p class="text-muted mb-0 small">
+      Real-time machine learning priority scoring, overdue risk monitoring, and task triage.
+    </p>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <a href="{{ url_for('task_list') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-kanban me-1"></i>All Tasks
+    </a>
+    <a href="{{ url_for('task_create') }}" class="btn btn-primary">
+      <i class="bi bi-plus-lg me-1"></i>New Task
+    </a>
+  </div>
+</div>
+
+<!-- ── Attention Callout Banner (if overdue or critical exist) ── -->
+{% if stats.overdue > 0 or stats.priority_counts.Critical > 0 %}
+<div class="card border-0 mb-4 shadow-sm" style="background: linear-gradient(90deg, rgba(239, 68, 68, 0.08) 0%, rgba(249, 115, 22, 0.05) 100%); border-left: 4px solid var(--p-critical) !important;">
+  <div class="card-body py-3 d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+    <div class="d-flex align-items-center gap-3">
+      <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 36px; height: 36px; background: rgba(239, 68, 68, 0.15); color: var(--p-critical);">
+        <i class="bi bi-exclamation-triangle-fill fs-6"></i>
+      </div>
+      <div>
+        <div class="fw-bold" style="color: var(--p-critical);">High Urgency Backlog Detected</div>
+        <div class="text-muted small">
+          You have <strong>{{ stats.overdue }} overdue</strong> and <strong>{{ stats.priority_counts.Critical }} critical</strong> task{% if stats.priority_counts.Critical != 1 %}s{% endif %} requiring immediate attention.
+        </div>
+      </div>
+    </div>
+    <a href="{{ url_for('task_list', priority='Critical') }}" class="btn btn-sm btn-outline-danger align-self-sm-center">
+      Review Critical Tasks <i class="bi bi-arrow-right ms-1"></i>
+    </a>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── 6 Modern Stat Metric Cards ── -->
+<div class="row g-3 mb-4">
+  <!-- Total -->
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="stat-metric-card stat-card-total">
+      <div>
+        <div class="stat-icon-wrapper">
+          <i class="bi bi-layers-half"></i>
+        </div>
+        <div class="stat-val">{{ stats.total }}</div>
+      </div>
+      <div class="stat-lbl">Total Tasks</div>
+    </div>
+  </div>
+
+  <!-- Critical -->
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="stat-metric-card stat-card-critical">
+      <div>
+        <div class="stat-icon-wrapper">
+          <i class="bi bi-fire"></i>
+        </div>
+        <div class="stat-val">{{ stats.priority_counts.Critical }}</div>
+      </div>
+      <div class="stat-lbl">Critical</div>
+    </div>
+  </div>
+
+  <!-- High -->
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="stat-metric-card stat-card-high">
+      <div>
+        <div class="stat-icon-wrapper">
+          <i class="bi bi-arrow-up-circle"></i>
+        </div>
+        <div class="stat-val">{{ stats.priority_counts.High }}</div>
+      </div>
+      <div class="stat-lbl">High</div>
+    </div>
+  </div>
+
+  <!-- Medium -->
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="stat-metric-card stat-card-medium">
+      <div>
+        <div class="stat-icon-wrapper">
+          <i class="bi bi-dash-circle"></i>
+        </div>
+        <div class="stat-val">{{ stats.priority_counts.Medium }}</div>
+      </div>
+      <div class="stat-lbl">Medium</div>
+    </div>
+  </div>
+
+  <!-- Low -->
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="stat-metric-card stat-card-low">
+      <div>
+        <div class="stat-icon-wrapper">
+          <i class="bi bi-arrow-down-circle"></i>
+        </div>
+        <div class="stat-val">{{ stats.priority_counts.Low }}</div>
+      </div>
+      <div class="stat-lbl">Low</div>
+    </div>
+  </div>
+
+  <!-- Overdue -->
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="stat-metric-card stat-card-overdue">
+      <div>
+        <div class="stat-icon-wrapper">
+          <i class="bi bi-alarm"></i>
+        </div>
+        <div class="stat-val">{{ stats.overdue }}</div>
+      </div>
+      <div class="stat-lbl">Overdue</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Main Analytics Section ── -->
+<div class="row g-4">
+
+  <!-- Left: Priority Distribution & AI Confidence -->
+  <div class="col-lg-5">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="fw-bold mb-0 fs-6">
+          <i class="bi bi-pie-chart-fill text-primary me-2"></i>Priority Distribution
+        </h5>
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill small">
+          Decision Tree
+        </span>
+      </div>
+      <div class="card-body">
+        
+        <!-- Live Visual Distribution Bars -->
+        {% set total_p = stats.priority_counts.Critical + stats.priority_counts.High + stats.priority_counts.Medium + stats.priority_counts.Low %}
+        <div class="mb-4">
+          <div class="d-flex justify-content-between align-items-center small mb-1">
+            <span class="fw-semibold">Breakdown Composition</span>
+            <span class="text-muted">{{ total_p }} scored tasks</span>
+          </div>
+
+          <div class="progress-stacked" style="height: 12px; border-radius: var(--radius-full); overflow: hidden; background: var(--bg-surface-subtle);">
+            {% if total_p > 0 %}
+              {% set crit_pct = (stats.priority_counts.Critical / total_p * 100)|round(1) %}
+              {% set high_pct = (stats.priority_counts.High / total_p * 100)|round(1) %}
+              {% set med_pct  = (stats.priority_counts.Medium / total_p * 100)|round(1) %}
+              {% set low_pct  = (stats.priority_counts.Low / total_p * 100)|round(1) %}
+              <div class="progress" role="progressbar" data-pct="{{ crit_pct }}" title="Critical: {{ stats.priority_counts.Critical }}">
+                <div class="progress-bar" style="background-color: var(--p-critical);"></div>
+              </div>
+              <div class="progress" role="progressbar" data-pct="{{ high_pct }}" title="High: {{ stats.priority_counts.High }}">
+                <div class="progress-bar" style="background-color: var(--p-high);"></div>
+              </div>
+              <div class="progress" role="progressbar" data-pct="{{ med_pct }}" title="Medium: {{ stats.priority_counts.Medium }}">
+                <div class="progress-bar" style="background-color: var(--p-medium);"></div>
+              </div>
+              <div class="progress" role="progressbar" data-pct="{{ low_pct }}" title="Low: {{ stats.priority_counts.Low }}">
+                <div class="progress-bar" style="background-color: var(--p-low);"></div>
+              </div>
+            {% else %}
+              <div class="progress" role="progressbar" data-pct="100">
+                <div class="progress-bar bg-secondary-subtle"></div>
+              </div>
+            {% endif %}
+          </div>
+
+          <div class="d-flex flex-wrap justify-content-between gap-2 mt-3 small">
+            <div class="d-flex align-items-center gap-1">
+              <span class="d-inline-block rounded-circle" style="width: 8px; height: 8px; background: var(--p-critical);"></span>
+              <span class="text-muted">Critical: <strong>{{ stats.priority_counts.Critical }}</strong></span>
+            </div>
+            <div class="d-flex align-items-center gap-1">
+              <span class="d-inline-block rounded-circle" style="width: 8px; height: 8px; background: var(--p-high);"></span>
+              <span class="text-muted">High: <strong>{{ stats.priority_counts.High }}</strong></span>
+            </div>
+            <div class="d-flex align-items-center gap-1">
+              <span class="d-inline-block rounded-circle" style="width: 8px; height: 8px; background: var(--p-medium);"></span>
+              <span class="text-muted">Medium: <strong>{{ stats.priority_counts.Medium }}</strong></span>
+            </div>
+            <div class="d-flex align-items-center gap-1">
+              <span class="d-inline-block rounded-circle" style="width: 8px; height: 8px; background: var(--p-low);"></span>
+              <span class="text-muted">Low: <strong>{{ stats.priority_counts.Low }}</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Matplotlib Chart container -->
+        <div class="text-center p-2 rounded-3" style="background: var(--bg-surface-subtle);">
+          {% if chart_b64 %}
+            <img src="data:image/png;base64,{{ chart_b64 }}"
+                 alt="Priority distribution bar chart"
+                 class="img-fluid rounded shadow-xs"
+                 style="max-height: 240px; object-fit: contain;" />
+          {% else %}
+            <div class="py-5 text-muted small">
+              <i class="bi bi-bar-chart fs-2 d-block mb-1"></i>
+              No chart data available yet.
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="mt-3 p-3 rounded-3 border" style="background: var(--bg-surface); border-color: var(--border-color) !important;">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <i class="bi bi-lightbulb-fill text-warning"></i>
+            <span class="fw-semibold small">Scoring Formula</span>
+          </div>
+          <p class="text-muted small mb-0">
+            <code>(Impact × 4) + (Urgency × 3) + (Deps × 2) + Deadline Pts + Effort Mod</code>
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Recent Tasks -->
+  <div class="col-lg-7">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+          <h5 class="fw-bold mb-0 fs-6">
+            <i class="bi bi-clock-history text-primary me-2"></i>Recent Tasks &amp; Priority
+          </h5>
+        </div>
+        <a href="{{ url_for('task_list') }}" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1">
+          <span>View All Tasks</span>
+          <i class="bi bi-arrow-right"></i>
+        </a>
+      </div>
+
+      <div class="card-body p-0">
+        {% if stats.recent_tasks %}
+          <div class="table-responsive">
+            <table class="table table-custom align-middle">
+              <thead>
+                <tr>
+                  <th>Task Name</th>
+                  <th>Deadline</th>
+                  <th>Priority</th>
+                  <th class="text-center">Score</th>
+                  <th>Status</th>
+                  <th class="text-end">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for task in stats.recent_tasks %}
+                <tr class="clickable-row" data-href="{{ url_for('task_detail', task_id=task.task_id) }}">
+                  <td>
+                    <div class="fw-bold text-main">{{ task.title }}</div>
+                    {% if task.description %}
+                      <div class="text-muted small text-truncate" style="max-width: 200px;">
+                        {{ task.description }}
+                      </div>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <span class="font-mono small text-muted">{{ task.deadline }}</span>
+                  </td>
+                  <td>
+                    {% if task.priority_label %}
+                      <span class="priority-badge priority-badge-{{ task.priority_label|lower }}">
+                        {{ task.priority_label }}
+                      </span>
+                    {% else %}
+                      <span class="text-muted small">—</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-center">
+                    {% if task.priority_score is not none %}
+                      <span class="score-badge
+                        {% if task.priority_score >= 80 %}score-critical
+                        {% elif task.priority_score >= 60 %}score-high
+                        {% elif task.priority_score >= 40 %}score-medium
+                        {% else %}score-low{% endif %}">
+                        {{ task.priority_score }}
+                      </span>
+                    {% else %}
+                      <span class="text-muted small">—</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% set st = task.status|lower|replace(' ', '') %}
+                    <span class="status-pill status-{{ st }}">
+                      {{ task.status }}
+                    </span>
+                  </td>
+                  <td class="text-end">
+                    <a href="{{ url_for('task_detail', task_id=task.task_id) }}" class="btn btn-sm btn-outline-secondary py-1 px-2" title="View details">
+                      <i class="bi bi-chevron-right"></i>
+                    </a>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="text-center py-5 px-3">
+            <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3" style="width: 64px; height: 64px; background: var(--bg-surface-subtle); color: var(--text-muted);">
+              <i class="bi bi-inbox fs-2"></i>
+            </div>
+            <h6 class="fw-bold mb-1">No tasks in your backlog yet</h6>
+            <p class="text-muted small mb-3">Create your first task to test the AI Priority Prediction engine.</p>
+            <a href="{{ url_for('task_create') }}" class="btn btn-primary btn-sm">
+              <i class="bi bi-plus-lg me-1"></i>Create New Task
+            </a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Set dynamic progress bar widths
+  document.querySelectorAll('.progress[data-pct]').forEach(el => {
+    el.style.width = el.dataset.pct + '%';
+  });
+
+  // Clickable table rows
+  document.querySelectorAll(".clickable-row").forEach(row => {
+    row.addEventListener("click", (e) => {
+      // Don't trigger if clicked directly on an action button or link
+      if (!e.target.closest('a') && !e.target.closest('button')) {
+        window.location = row.dataset.href;
+      }
+    });
+  });
+</script>
+{% endblock %}

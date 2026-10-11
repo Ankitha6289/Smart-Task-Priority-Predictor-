@@ -1,0 +1,485 @@
+{% extends "base.html" %}
+{% block title %}{{ task.title }} – Smart Task Priority Predictor{% endblock %}
+
+{% block content %}
+<!-- ── Top Header & Actions ── -->
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
+  <div class="d-flex align-items-center gap-3">
+    <a href="{{ url_for('task_list') }}" class="btn btn-sm btn-outline-secondary" title="Back to task list">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <div>
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <h2 class="fw-bold mb-0 text-main">{{ task.title }}</h2>
+        {% set st = task.status|lower|replace(' ', '') %}
+        <span class="status-pill status-{{ st }} fs-7">
+          {{ task.status }}
+        </span>
+      </div>
+      <div class="text-muted small d-flex align-items-center gap-3">
+        <span><i class="bi bi-tag text-primary me-1"></i>{{ task.task_type }}</span>
+        <span>&bull;</span>
+        <span><i class="bi bi-calendar-event me-1"></i>Deadline: <strong>{{ task.deadline }}</strong></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex align-items-center gap-2">
+    <a href="{{ url_for('task_edit', task_id=task.task_id) }}" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-pencil me-1"></i>Edit Task
+    </a>
+    <button type="button" class="btn btn-outline-danger btn-sm delete-task-btn"
+            data-task-id="{{ task.task_id }}" data-task-title="{{ task.title }}">
+      <i class="bi bi-trash me-1"></i>Delete
+    </button>
+    <form id="delete-form-{{ task.task_id }}"
+          method="POST"
+          action="{{ url_for('task_delete', task_id=task.task_id) }}"
+          class="d-none">
+    </form>
+  </div>
+</div>
+
+<div class="row g-4">
+
+  <!-- ── Left Column: Prediction Intelligence & Task Details ── -->
+  <div class="col-lg-8">
+
+    <!-- 1. AI Prediction Intelligence Card -->
+    {% if task.priority_label %}
+    <div class="card border-0 shadow-sm mb-4 priority-border-{{ task.priority_label|lower }}">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="fw-bold mb-0 fs-6">
+          <i class="bi bi-lightning-charge-fill text-warning me-2"></i>Machine Learning Priority Assessment
+        </h5>
+        <span class="badge bg-surface-subtle text-muted border rounded-pill font-mono small">
+          Decision Tree Model
+        </span>
+      </div>
+      <div class="card-body">
+        
+        <!-- Score & Dial Row -->
+        <div class="d-flex flex-column flex-sm-row align-items-center gap-4 mb-4">
+          
+          <!-- Animated Priority Dial -->
+          <div class="priority-dial priority-dial-{{ task.priority_label|lower }}">
+            <div class="fs-4 fw-800 font-mono">{{ task.priority_score }}</div>
+            <div class="text-uppercase fw-bold" style="font-size: 0.68rem; letter-spacing: 0.06em;">{{ task.priority_label }}</div>
+          </div>
+
+          <!-- Score Metrics and Model Type -->
+          <div class="flex-grow-1 text-center text-sm-start">
+            <div class="text-muted small text-uppercase fw-bold letter-spacing-1 mb-1">Assessed Priority Classification</div>
+            <div class="d-flex flex-wrap align-items-center justify-content-center justify-content-sm-start gap-2 mb-2">
+              <span class="priority-badge priority-badge-{{ task.priority_label|lower }} fs-6 py-1 px-3">
+                {{ task.priority_label }} Priority
+              </span>
+              <span class="badge bg-surface-subtle text-main border py-1 px-2 font-mono small">
+                Raw Score: {{ task.priority_score }} / 100
+              </span>
+              <span class="badge bg-primary-subtle text-primary border border-primary-subtle py-1 px-2 small">
+                Classifier: {{ task.model_prediction }}
+              </span>
+            </div>
+            <p class="text-muted small mb-0">
+              Evaluated using multi-criteria weighted scoring combined with scikit-learn Decision Tree rules.
+            </p>
+          </div>
+
+        </div>
+
+        <!-- Priority Spectrum Progress Bar -->
+        <div class="mb-4">
+          <div class="d-flex justify-content-between small text-muted mb-1">
+            <span>Score Position</span>
+            <span class="font-mono fw-bold text-main">{{ task.priority_score }}%</span>
+          </div>
+          <div class="progress" style="height: 10px; border-radius: var(--radius-full); background: var(--bg-surface-subtle);">
+            <div class="progress-bar
+              {% if task.priority_label == 'Critical' %}bg-danger
+              {% elif task.priority_label == 'High' %}bg-warning
+              {% elif task.priority_label == 'Medium' %}bg-primary
+              {% else %}bg-success{% endif %}"
+              role="progressbar"
+              data-pct="{{ task.priority_score }}"
+              aria-valuenow="{{ task.priority_score }}" aria-valuemin="0" aria-valuemax="100">
+            </div>
+          </div>
+          <div class="d-flex justify-content-between small text-muted mt-1 font-mono" style="font-size: 0.72rem;">
+            <span>0 Low</span>
+            <span>40 Medium</span>
+            <span>60 High</span>
+            <span>80 Critical</span>
+            <span>100 Max</span>
+          </div>
+        </div>
+
+        <!-- AI Explanation Breakdown -->
+        <div class="p-3 rounded-3" style="background: var(--bg-surface-subtle);">
+          <h6 class="fw-bold small text-muted text-uppercase mb-2 letter-spacing-1">
+            <i class="bi bi-patch-check-fill text-success me-1"></i>Decision Tree Explanation
+          </h6>
+          {% if task.reasons %}
+            <ul class="list-unstyled mb-0 d-flex flex-column gap-2">
+              {% for reason in task.reasons.split(' | ') %}
+                {% if reason.strip() %}
+                <li class="d-flex align-items-start gap-2 small">
+                  <i class="bi bi-check-circle-fill text-success flex-shrink-0 mt-1"></i>
+                  <span class="text-main">{{ reason.strip() }}</span>
+                </li>
+                {% endif %}
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-muted small mb-0">No specific explanation stored for this prediction.</p>
+          {% endif %}
+        </div>
+
+        {% if task.prediction_date %}
+        <div class="mt-3 text-muted small" style="font-size: 0.75rem;">
+          <i class="bi bi-clock me-1"></i>Prediction generated on: {{ task.prediction_date[:19] }}
+        </div>
+        {% endif %}
+
+      </div>
+    </div>
+    {% else %}
+    <!-- Warning: No prediction -->
+    <div class="alert alert-warning d-flex align-items-center gap-3 p-3 shadow-sm mb-4" role="alert">
+      <i class="bi bi-exclamation-triangle-fill fs-3 text-warning"></i>
+      <div>
+        <div class="fw-bold">No Priority Prediction Available</div>
+        <div class="small text-muted">
+          This task doesn't have an automated prediction yet. 
+          <a href="{{ url_for('task_edit', task_id=task.task_id) }}" class="fw-semibold">Edit and save</a> to trigger model evaluation.
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- 2. Task Parameters & Attributes Grid -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header">
+        <h5 class="fw-bold mb-0 fs-6">
+          <i class="bi bi-info-circle text-primary me-2"></i>Task Parameters &amp; Details
+        </h5>
+      </div>
+      <div class="card-body">
+        
+        {% if task.description %}
+          <div class="mb-4 p-3 rounded-3" style="background: var(--bg-surface-subtle);">
+            <div class="detail-label mb-1">Description</div>
+            <p class="text-main mb-0 small" style="white-space: pre-line;">{{ task.description }}</p>
+          </div>
+        {% endif %}
+
+        <div class="row g-3">
+          <!-- Business Impact -->
+          <div class="col-6 col-md-3">
+            <div class="p-3 rounded-3 border h-100" style="background: var(--bg-surface);">
+              <div class="detail-label">Business Impact</div>
+              <div class="d-flex align-items-baseline gap-1 mt-1">
+                <span class="fs-4 fw-bold font-mono text-primary">{{ task.business_impact }}</span>
+                <span class="text-muted small">/ 10</span>
+              </div>
+              <div class="progress mt-2" style="height: 4px;">
+                <div class="progress-bar bg-primary" data-pct="{{ task.business_impact * 10 }}"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Urgency -->
+          <div class="col-6 col-md-3">
+            <div class="p-3 rounded-3 border h-100" style="background: var(--bg-surface);">
+              <div class="detail-label">Urgency Level</div>
+              <div class="d-flex align-items-baseline gap-1 mt-1">
+                <span class="fs-4 fw-bold font-mono text-warning">{{ task.urgency }}</span>
+                <span class="text-muted small">/ 10</span>
+              </div>
+              <div class="progress mt-2" style="height: 4px;">
+                <div class="progress-bar bg-warning" data-pct="{{ task.urgency * 10 }}"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Estimated Effort -->
+          <div class="col-6 col-md-3">
+            <div class="p-3 rounded-3 border h-100" style="background: var(--bg-surface);">
+              <div class="detail-label">Estimated Effort</div>
+              <div class="d-flex align-items-baseline gap-1 mt-1">
+                <span class="fs-4 fw-bold font-mono text-main">{{ task.estimated_effort }}</span>
+                <span class="text-muted small">hrs</span>
+              </div>
+              <div class="small text-muted mt-2">
+                {% if task.estimated_effort < 3 %}
+                  <span class="text-success"><i class="bi bi-lightning-charge"></i> Quick win</span>
+                {% elif task.estimated_effort > 20 %}
+                  <span class="text-secondary"><i class="bi bi-hourglass-split"></i> Long effort</span>
+                {% else %}
+                  <span>Standard effort</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <!-- Dependencies -->
+          <div class="col-6 col-md-3">
+            <div class="p-3 rounded-3 border h-100" style="background: var(--bg-surface);">
+              <div class="detail-label">Dependencies</div>
+              <div class="d-flex align-items-baseline gap-1 mt-1">
+                <span class="fs-4 fw-bold font-mono text-main">{{ task.dependency_count }}</span>
+                <span class="text-muted small">tasks</span>
+              </div>
+              <div class="small text-muted mt-2">
+                {% if task.dependency_count >= 4 %}
+                  <span class="text-danger"><i class="bi bi-shield-exclamation"></i> High blocker</span>
+                {% else %}
+                  <span>Normal flow</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <!-- Deadline Date -->
+          <div class="col-6 col-md-3">
+            <div class="p-3 rounded-3 border h-100" style="background: var(--bg-surface);">
+              <div class="detail-label">Deadline</div>
+              <div class="font-mono fw-bold text-main mt-1">{{ task.deadline }}</div>
+            </div>
+          </div>
+
+          <!-- Task Type -->
+          <div class="col-6 col-md-3">
+            <div class="p-3 rounded-3 border h-100" style="background: var(--bg-surface);">
+              <div class="detail-label">Task Type</div>
+              <div class="fw-semibold text-main mt-1">{{ task.task_type }}</div>
+            </div>
+          </div>
+
+          <!-- Status -->
+          <div class="col-6 col-md-3">
+            <div class="p-3 rounded-3 border h-100" style="background: var(--bg-surface);">
+              <div class="detail-label">Current Status</div>
+              <div class="mt-1">
+                <span class="status-pill status-{{ task.status|lower|replace(' ', '') }}">
+                  {{ task.status }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Created At -->
+          <div class="col-6 col-md-3">
+            <div class="p-3 rounded-3 border h-100" style="background: var(--bg-surface);">
+              <div class="detail-label">Creation Date</div>
+              <div class="font-mono text-muted small mt-1">{{ task.created_at[:10] }}</div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 3. Override History Timeline -->
+    {% if overrides %}
+    <div class="card border-0 shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="fw-bold mb-0 fs-6">
+          <i class="bi bi-clock-history text-secondary me-2"></i>Override Audit Trail
+        </h5>
+        <span class="badge bg-surface-subtle text-muted border font-mono small">
+          BR-10 Compliance
+        </span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-custom align-middle">
+            <thead>
+              <tr>
+                <th>Date / Time</th>
+                <th>Original</th>
+                <th>Overridden To</th>
+                <th>Justification Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ov in overrides %}
+              <tr>
+                <td class="font-mono small text-muted">{{ ov.created_at[:16] }}</td>
+                <td>
+                  <span class="priority-badge priority-badge-{{ ov.original_priority|lower }}">
+                    {{ ov.original_priority }}
+                  </span>
+                </td>
+                <td>
+                  <span class="priority-badge priority-badge-{{ ov.new_priority|lower }}">
+                    {{ ov.new_priority }}
+                  </span>
+                </td>
+                <td>
+                  <span class="small text-main">"{{ ov.reason }}"</span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- ── Right Column: Manual Override & Navigation ── -->
+  <div class="col-lg-4">
+
+    <!-- Manual Override Card -->
+    {% if task.priority_label and task.status not in ['Completed', 'Cancelled'] %}
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header">
+        <h5 class="fw-bold mb-0 fs-6">
+          <i class="bi bi-sliders2 text-primary me-2"></i>Manual Priority Override
+        </h5>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">
+          Need to escalate or downgrade this task? In compliance with <strong>BR-10</strong>, team members may override the AI priority by recording an audit rationale.
+        </p>
+
+        <form method="POST" action="{{ url_for('task_override', task_id=task.task_id) }}" novalidate>
+          
+          <div class="mb-3">
+            <label class="form-label small text-muted">Current Priority</label>
+            <div>
+              <span class="priority-badge priority-badge-{{ task.priority_label|lower }} fs-6 py-1 px-3">
+                {{ task.priority_label }} Priority
+              </span>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="new_priority" class="form-label">
+              New Priority <span class="text-danger">*</span>
+            </label>
+            <select class="form-select" id="new_priority" name="new_priority" required>
+              {% for p in priorities %}
+                <option value="{{ p }}" {% if p == task.priority_label %}disabled{% endif %}>
+                  {{ p }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="reason" class="form-label">
+              Audit Rationale / Reason <span class="text-danger">*</span>
+            </label>
+            <textarea class="form-control" id="reason" name="reason" rows="3"
+                      placeholder="e.g. Executive escalation due to Q3 client deliverable..." required></textarea>
+            <div class="form-text">Mandatory justification for audit history.</div>
+          </div>
+
+          <div class="d-grid">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-arrow-repeat me-1"></i>Apply Priority Override
+            </button>
+          </div>
+
+        </form>
+
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Quick Navigation Card -->
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <h6 class="fw-bold text-uppercase text-muted small letter-spacing-1 mb-3">
+          Quick Actions
+        </h6>
+        <div class="d-grid gap-2">
+          <a href="{{ url_for('task_edit', task_id=task.task_id) }}" class="btn btn-outline-primary btn-sm text-start">
+            <i class="bi bi-pencil me-2"></i>Edit Task Information
+          </a>
+          <a href="{{ url_for('task_create') }}" class="btn btn-outline-secondary btn-sm text-start">
+            <i class="bi bi-plus-lg me-2"></i>Create Another Task
+          </a>
+          <a href="{{ url_for('task_list') }}" class="btn btn-outline-secondary btn-sm text-start">
+            <i class="bi bi-kanban me-2"></i>Back to My Tasks
+          </a>
+          <a href="{{ url_for('batch_predict') }}" class="btn btn-outline-secondary btn-sm text-start">
+            <i class="bi bi-file-earmark-arrow-up me-2"></i>Batch CSV Predictor
+          </a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- ── Delete Confirmation Modal ── -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg" style="border-radius: var(--radius-lg);">
+      <div class="modal-header border-0 pb-0">
+        <div class="d-flex align-items-center gap-2 text-danger">
+          <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 36px; height: 36px; background: rgba(239, 68, 68, 0.15);">
+            <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+          </div>
+          <h5 class="modal-title fw-bold mb-0">Confirm Deletion</h5>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body py-3">
+        <p class="mb-2">Are you sure you want to permanently delete this task?</p>
+        <div class="p-3 rounded-3 border bg-surface-subtle">
+          <strong id="deleteTaskName" class="text-main"></strong>
+        </div>
+        <div class="text-muted small mt-2">
+          <i class="bi bi-info-circle me-1"></i>This action cannot be undone and will delete all associated predictions.
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger btn-sm px-3" id="confirmDeleteBtn">Delete Task</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Set dynamic progress bar widths
+  document.querySelectorAll('.progress-bar[data-pct]').forEach(el => {
+    el.style.width = el.dataset.pct + '%';
+  });
+
+  let deleteTaskId = null;
+  const deleteModalEl = document.getElementById("deleteModal");
+  const deleteModal = deleteModalEl ? new bootstrap.Modal(deleteModalEl) : null;
+
+  function confirmDelete(taskId, taskName) {
+    deleteTaskId = taskId;
+    document.getElementById("deleteTaskName").textContent = taskName;
+    if (deleteModal) deleteModal.show();
+  }
+
+  document.querySelectorAll('.delete-task-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      confirmDelete(btn.dataset.taskId, btn.dataset.taskTitle);
+    });
+  });
+
+  const confirmDeleteBtn = document.getElementById("confirmDeleteBtn");
+  if (confirmDeleteBtn) {
+    confirmDeleteBtn.addEventListener("click", () => {
+      if (deleteTaskId) {
+        document.getElementById("delete-form-" + deleteTaskId).submit();
+      }
+    });
+  }
+</script>
+{% endblock %}

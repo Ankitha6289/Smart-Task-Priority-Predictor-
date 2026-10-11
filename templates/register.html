@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Register – Smart Task Priority Predictor{% endblock %}
+
+{% block content %}
+<div class="auth-hero-backdrop">
+  <div class="auth-ambient-glow"></div>
+
+  <div class="col-11 col-sm-9 col-md-7 col-lg-5 col-xl-4 position-relative">
+    <div class="card auth-card border-0">
+      <div class="card-body p-4 p-sm-5">
+        
+        <!-- Brand Header -->
+        <div class="text-center mb-4">
+          <div class="d-inline-flex align-items-center justify-content-center brand-icon-box mb-3" style="width: 52px; height: 52px; font-size: 1.5rem;">
+            <i class="bi bi-person-plus-fill"></i>
+          </div>
+          <h3 class="fw-bold mb-1 tracking-tight text-main">Create Account</h3>
+          <p class="text-muted small mb-0">Join to start prioritizing with machine learning</p>
+        </div>
+
+        <!-- Highlights Pill Bar -->
+        <div class="d-flex justify-content-center gap-2 mb-4">
+          <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill font-mono small">
+            <i class="bi bi-shield-lock me-1"></i>Secure Auth
+          </span>
+          <span class="badge bg-surface-subtle text-muted border rounded-pill font-mono small">
+            <i class="bi bi-lightning-charge me-1"></i>Instant Access
+          </span>
+        </div>
+
+        <!-- Registration Form -->
+        <form method="POST" action="{{ url_for('register') }}" novalidate>
+          
+          <!-- Full Name -->
+          <div class="mb-3">
+            <label for="name" class="form-label">Full Name</label>
+            <div class="input-group">
+              <span class="input-group-text bg-surface border-end-0 text-muted">
+                <i class="bi bi-person"></i>
+              </span>
+              <input type="text" class="form-control border-start-0 ps-0" id="name" name="name"
+                     value="{{ name|default('') }}" required autofocus
+                     placeholder="Jane Doe" autocomplete="name" />
+            </div>
+          </div>
+
+          <!-- Email Address -->
+          <div class="mb-3">
+            <label for="email" class="form-label">Work Email</label>
+            <div class="input-group">
+              <span class="input-group-text bg-surface border-end-0 text-muted">
+                <i class="bi bi-envelope"></i>
+              </span>
+              <input type="email" class="form-control border-start-0 ps-0" id="email" name="email"
+                     value="{{ email|default('') }}" required
+                     placeholder="jane@company.com" autocomplete="email" />
+            </div>
+          </div>
+
+          <!-- Password -->
+          <div class="mb-3">
+            <label for="password" class="form-label">Password</label>
+            <div class="input-group">
+              <span class="input-group-text bg-surface border-end-0 text-muted">
+                <i class="bi bi-lock"></i>
+              </span>
+              <input type="password" class="form-control border-start-0 border-end-0 ps-0" id="password"
+                     name="password" required placeholder="Minimum 6 characters" autocomplete="new-password" />
+              <button type="button" class="input-group-text bg-surface border-start-0 text-muted togglePasswordBtn" data-target="password">
+                <i class="bi bi-eye"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Confirm Password -->
+          <div class="mb-4">
+            <label for="confirm_password" class="form-label">Confirm Password</label>
+            <div class="input-group">
+              <span class="input-group-text bg-surface border-end-0 text-muted">
+                <i class="bi bi-check2-circle"></i>
+              </span>
+              <input type="password" class="form-control border-start-0 border-end-0 ps-0" id="confirm_password"
+                     name="confirm_password" required placeholder="Re-enter password" autocomplete="new-password" />
+              <button type="button" class="input-group-text bg-surface border-start-0 text-muted togglePasswordBtn" data-target="confirm_password">
+                <i class="bi bi-eye"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Submit Button -->
+          <div class="d-grid mb-4">
+            <button type="submit" class="btn btn-primary btn-lg fs-6 py-2">
+              <i class="bi bi-person-check me-2"></i>Register
+            </button>
+          </div>
+
+        </form>
+
+        <div class="text-center pt-3 border-top" style="border-color: var(--border-color);">
+          <p class="text-muted small mb-0">
+            Already have an account? 
+            <a href="{{ url_for('login') }}" class="text-primary fw-bold text-decoration-none ms-1">
+              Sign in here
+            </a>
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll('.togglePasswordBtn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.dataset.target;
+      const input = document.getElementById(targetId);
+      const icon = btn.querySelector('i');
+      if (input) {
+        const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
+        input.setAttribute('type', type);
+        icon.className = type === 'password' ? 'bi bi-eye' : 'bi bi-eye-slash text-primary';
+      }
+    });
+  });
+</script>
+{% endblock %}

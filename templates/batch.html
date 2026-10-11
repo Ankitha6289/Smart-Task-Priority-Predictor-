@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+{% block title %}Batch Prediction – Smart Task Priority Predictor{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4 gap-2">
+  <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-outline-secondary" title="Back to dashboard">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <div>
+    <h2 class="fw-bold mb-0">
+      <i class="bi bi-file-earmark-arrow-up text-primary me-2"></i>Batch Priority Prediction
+    </h2>
+    <p class="text-muted small mb-0">
+      Upload backlog datasets in CSV format to classify and score hundreds of tasks simultaneously.
+    </p>
+  </div>
+</div>
+
+<div class="row g-4">
+
+  <!-- ── Left Column: Upload Studio & Requirements ── -->
+  <div class="col-lg-4">
+    
+    <!-- Upload Card -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-body p-4">
+        <h5 class="fw-bold mb-1 fs-6">Upload CSV Dataset</h5>
+        <p class="text-muted small mb-4">
+          Process up to <strong>500 tasks</strong> per upload with instant priority inference.
+        </p>
+
+        <form method="POST" action="{{ url_for('batch_predict') }}" enctype="multipart/form-data" id="batchForm">
+          
+          <!-- Modern Drag & Drop Zone -->
+          <div class="dropzone-box mb-3" id="dropzoneBox">
+            <input type="file" id="csv_file" name="csv_file" accept=".csv" class="d-none" required />
+            <div class="dropzone-icon">
+              <i class="bi bi-cloud-arrow-up-fill"></i>
+            </div>
+            <h6 class="fw-bold text-main mb-1" id="dropzoneTitle">Drag &amp; Drop CSV File</h6>
+            <p class="text-muted small mb-3" id="dropzoneSub">or click to browse your files</p>
+            <button type="button" class="btn btn-sm btn-outline-primary px-3" onclick="document.getElementById('csv_file').click()">
+              Choose File
+            </button>
+            <div id="fileInfoBox" class="mt-3 d-none">
+              <span class="badge bg-primary-subtle text-primary border border-primary-subtle py-2 px-3 rounded-pill font-mono small d-inline-flex align-items-center gap-2">
+                <i class="bi bi-filetype-csv fs-6"></i>
+                <span id="fileNameDisplay">dataset.csv</span>
+              </span>
+            </div>
+          </div>
+
+          <div class="d-grid">
+            <button type="submit" class="btn btn-primary" id="submitBatchBtn">
+              <i class="bi bi-lightning-charge-fill me-1"></i>Run Batch Prediction
+            </button>
+          </div>
+        </form>
+
+      </div>
+    </div>
+
+    <!-- Requirements Card -->
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="fw-bold text-uppercase text-muted small letter-spacing-1 mb-0">
+            <i class="bi bi-file-earmark-spreadsheet text-primary me-1"></i> CSV Specifications
+          </h6>
+          <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 small" id="copySampleBtn">
+            <i class="bi bi-clipboard me-1"></i>Copy Sample
+          </button>
+        </div>
+
+        <ul class="list-unstyled small text-muted mb-3 d-flex flex-column gap-2">
+          <li class="d-flex align-items-start gap-2">
+            <code class="text-primary font-mono">deadline_date</code>
+            <span>YYYY-MM-DD format (not earlier than today)</span>
+          </li>
+          <li class="d-flex align-items-start gap-2">
+            <code class="text-primary font-mono">estimated_effort</code>
+            <span>Hours &gt; 0 (decimal allowed, e.g. 4.5)</span>
+          </li>
+          <li class="d-flex align-items-start gap-2">
+            <code class="text-primary font-mono">business_impact</code>
+            <span>Integer from 1 (lowest) to 10 (critical)</span>
+          </li>
+          <li class="d-flex align-items-start gap-2">
+            <code class="text-primary font-mono">urgency</code>
+            <span>Integer from 1 (flexible) to 10 (emergency)</span>
+          </li>
+          <li class="d-flex align-items-start gap-2">
+            <code class="text-primary font-mono">dependency_count</code>
+            <span>Blocked tasks count (integer &ge; 0)</span>
+          </li>
+          <li class="d-flex align-items-start gap-2">
+            <code class="text-primary font-mono">task_type</code>
+            <span>Development / Testing / Design / Documentation / Other</span>
+          </li>
+        </ul>
+
+        <div class="p-3 rounded-3" style="background: var(--bg-surface-subtle);">
+          <div class="fw-semibold small text-main mb-1">Example Row:</div>
+          <code class="font-mono small text-muted d-block text-break" style="font-size: 0.75rem;">
+            2026-10-15,6.5,8,7,2,Development
+          </code>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Right Column: Prediction Results ── -->
+  <div class="col-lg-8">
+
+    {% if has_results %}
+      <!-- KPI Stats Row -->
+      <div class="row g-3 mb-4">
+        <div class="col-4">
+          <div class="p-3 rounded-3 border bg-surface text-center shadow-xs">
+            <div class="text-muted small text-uppercase fw-bold letter-spacing-1">Total Rows</div>
+            <div class="fs-3 fw-bold font-mono text-main mt-1">{{ total }}</div>
+          </div>
+        </div>
+        <div class="col-4">
+          <div class="p-3 rounded-3 border bg-surface text-center shadow-xs" style="border-left: 3px solid var(--p-low) !important;">
+            <div class="text-muted small text-uppercase fw-bold letter-spacing-1">Valid Scored</div>
+            <div class="fs-3 fw-bold font-mono text-success mt-1">{{ valid_count }}</div>
+          </div>
+        </div>
+        <div class="col-4">
+          <div class="p-3 rounded-3 border bg-surface text-center shadow-xs" style="border-left: 3px solid var(--p-critical) !important;">
+            <div class="text-muted small text-uppercase fw-bold letter-spacing-1">Errors</div>
+            <div class="fs-3 fw-bold font-mono {% if errors_list %}text-danger{% else %}text-muted{% endif %} mt-1">
+              {{ errors_list|length }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Errors Callout (if any) -->
+      {% if errors_list %}
+      <div class="card border-0 mb-4 shadow-sm" style="border-left: 4px solid var(--p-critical) !important;">
+        <div class="card-body p-3">
+          <h6 class="fw-bold text-danger mb-2 small text-uppercase">
+            <i class="bi bi-exclamation-octagon-fill me-1"></i>Rows With Formatting Errors (Skipped)
+          </h6>
+          <div style="max-height: 120px; overflow-y: auto;">
+            <ul class="list-unstyled small text-muted mb-0">
+              {% for err in errors_list %}
+                <li class="mb-1">&bull; Row {{ err.row }}: {{ err.reason }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Results Table Card -->
+      <div class="card border-0 shadow-sm">
+        <div class="card-header d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+          <div>
+            <h5 class="fw-bold mb-0 fs-6">
+              <i class="bi bi-table text-primary me-2"></i>Batch Inferred Results
+            </h5>
+            <span class="text-muted small">{{ valid_count }} predictions ready</span>
+          </div>
+          <a href="{{ url_for('download_file', filename='batch_results.csv') }}" class="btn btn-sm btn-success d-inline-flex align-items-center gap-1 shadow-xs">
+            <i class="bi bi-download"></i>
+            <span>Download Results CSV</span>
+          </a>
+        </div>
+
+        <div class="card-body p-0">
+          <div class="table-responsive" style="max-height: 520px; overflow-y: auto;">
+            <table class="table table-custom align-middle">
+              <thead class="sticky-top">
+                <tr>
+                  {% for col in results_df.columns %}
+                    <th>{{ col|replace('_', ' ')|title }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for _, row in results_df.iterrows() %}
+                <tr>
+                  {% for col in results_df.columns %}
+                    <td>
+                      {% if col == 'priority_label' %}
+                        <span class="priority-badge priority-badge-{{ row[col]|lower }}">
+                          {{ row[col] }}
+                        </span>
+                      {% elif col == 'priority_score' %}
+                        <span class="score-badge
+                          {% if row[col] >= 80 %}score-critical
+                          {% elif row[col] >= 60 %}score-high
+                          {% elif row[col] >= 40 %}score-medium
+                          {% else %}score-low{% endif %}">
+                          {{ row[col] }}
+                        </span>
+                      {% else %}
+                        <span class="small font-mono">{{ row[col] }}</span>
+                      {% endif %}
+                    </td>
+                  {% endfor %}
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    {% else %}
+      <!-- Empty Placeholder State -->
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body text-center py-5 d-flex flex-column align-items-center justify-content-center">
+          <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3" style="width: 80px; height: 80px; background: var(--bg-surface-subtle); color: var(--text-muted);">
+            <i class="bi bi-file-earmark-bar-graph fs-1"></i>
+          </div>
+          <h5 class="fw-bold mb-1">No Batch Dataset Processed Yet</h5>
+          <p class="text-muted small mb-4" style="max-width: 380px;">
+            Upload a CSV containing task backlog records on the left to view instant ML prioritization, score itemization, and exportable results.
+          </p>
+          <div class="d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('csv_file').click()">
+              <i class="bi bi-upload me-1"></i>Select CSV File
+            </button>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const dropzone = document.getElementById('dropzoneBox');
+  const fileInput = document.getElementById('csv_file');
+  const dropzoneTitle = document.getElementById('dropzoneTitle');
+  const dropzoneSub = document.getElementById('dropzoneSub');
+  const fileInfoBox = document.getElementById('fileInfoBox');
+  const fileNameDisplay = document.getElementById('fileNameDisplay');
+
+  // Drag and Drop Events
+  ['dragenter', 'dragover'].forEach(eventName => {
+    dropzone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropzone.classList.add('dragover');
+    });
+  });
+
+  ['dragleave', 'drop'].forEach(eventName => {
+    dropzone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropzone.classList.remove('dragover');
+    });
+  });
+
+  dropzone.addEventListener('drop', (e) => {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    if (files.length > 0 && files[0].name.toLowerCase().endsWith('.csv')) {
+      fileInput.files = files;
+      handleFileSelected(files[0]);
+    } else {
+      alert("Please upload a valid .csv file.");
+    }
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length > 0) {
+      handleFileSelected(fileInput.files[0]);
+    }
+  });
+
+  function handleFileSelected(file) {
+    fileNameDisplay.textContent = `${file.name} (${Math.round(file.size / 1024)} KB)`;
+    fileInfoBox.classList.remove('d-none');
+    dropzoneTitle.textContent = "CSV File Ready";
+    dropzoneSub.textContent = "Click below to run batch prediction";
+  }
+
+  // Copy sample CSV format
+  const copyBtn = document.getElementById('copySampleBtn');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', () => {
+      const sample = `deadline_date,estimated_effort,business_impact,urgency,dependency_count,task_type\n2026-10-15,6.5,8,7,2,Development\n2026-10-20,2.0,5,4,0,Testing\n2026-10-25,12.0,9,9,3,Design`;
+      navigator.clipboard.writeText(sample).then(() => {
+        copyBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Copied!';
+        setTimeout(() => {
+          copyBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy Sample';
+        }, 2000);
+      });
+    });
+  }
+</script>
+{% endblock %}

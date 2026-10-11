@@ -1,0 +1,497 @@
+{% extends "base.html" %}
+{% block title %}My Tasks – Smart Task Priority Predictor{% endblock %}
+
+{% block content %}
+<!-- ── Page Header ── -->
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-4">
+  <div>
+    <div class="d-flex align-items-center gap-2">
+      <h2 class="fw-bold mb-0">
+        <i class="bi bi-kanban text-primary me-2"></i>My Tasks
+      </h2>
+      <span class="badge rounded-pill bg-primary-subtle text-primary border border-primary-subtle font-mono">
+        {{ tasks|length }}
+      </span>
+    </div>
+    <p class="text-muted mb-0 small mt-1">
+      Manage, filter, sort, and prioritize your team's backlog.
+    </p>
+  </div>
+  
+  <div class="d-flex align-items-center gap-2">
+    <!-- View Switcher (Table vs Kanban) -->
+    <div class="btn-group" role="group" aria-label="View toggle">
+      <button type="button" class="btn btn-outline-secondary active btn-sm" id="tableViewBtn" title="Table View">
+        <i class="bi bi-table me-1"></i>Table
+      </button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="kanbanViewBtn" title="Kanban Board View">
+        <i class="bi bi-grid-3x3-gap me-1"></i>Kanban
+      </button>
+    </div>
+
+    <a href="{{ url_for('task_create') }}" class="btn btn-primary btn-sm">
+      <i class="bi bi-plus-lg me-1"></i>New Task
+    </a>
+  </div>
+</div>
+
+<!-- ── Search & Filter Toolbar ── -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-body py-3">
+    <form method="GET" action="{{ url_for('task_list') }}" class="row g-2 align-items-end" id="filterForm">
+      
+      <!-- Search Input -->
+      <div class="col-12 col-md-4">
+        <label class="form-label small text-muted mb-1">Search Tasks</label>
+        <div class="input-group">
+          <span class="input-group-text bg-surface border-end-0 text-muted">
+            <i class="bi bi-search"></i>
+          </span>
+          <input type="text" class="form-control border-start-0 ps-0" name="search"
+                 placeholder="Search by title..." value="{{ search }}" id="searchInput" />
+          {% if search %}
+            <a href="{{ url_for('task_list', status=status_filter, priority=priority_filter, sort='priority' if sort_priority else '') }}" 
+               class="input-group-text bg-surface text-muted text-decoration-none" title="Clear search">
+              <i class="bi bi-x-circle"></i>
+            </a>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Status Filter -->
+      <div class="col-6 col-md-2">
+        <label class="form-label small text-muted mb-1">Status</label>
+        <select class="form-select form-select-sm" name="status" onchange="this.form.submit()">
+          <option value="">All Statuses</option>
+          {% for s in statuses %}
+            <option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Priority Filter -->
+      <div class="col-6 col-md-2">
+        <label class="form-label small text-muted mb-1">Priority</label>
+        <select class="form-select form-select-sm" name="priority" onchange="this.form.submit()">
+          <option value="">All Priorities</option>
+          {% for p in priorities %}
+            <option value="{{ p }}" {% if priority_filter == p %}selected{% endif %}>{{ p }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Sort Filter -->
+      <div class="col-6 col-md-2">
+        <label class="form-label small text-muted mb-1">Sort By</label>
+        <select class="form-select form-select-sm" name="sort" onchange="this.form.submit()">
+          <option value="" {% if not sort_priority %}selected{% endif %}>Date Created</option>
+          <option value="priority" {% if sort_priority %}selected{% endif %}>Priority Score</option>
+        </select>
+      </div>
+
+      <!-- Actions -->
+      <div class="col-6 col-md-2 d-flex gap-2">
+        <button type="submit" class="btn btn-primary btn-sm flex-fill">
+          <i class="bi bi-funnel me-1"></i>Filter
+        </button>
+        {% if search or status_filter or priority_filter or sort_priority %}
+          <a href="{{ url_for('task_list') }}" class="btn btn-outline-secondary btn-sm flex-fill" title="Reset all filters">
+            Reset
+          </a>
+        {% endif %}
+      </div>
+
+    </form>
+  </div>
+</div>
+
+<!-- ── Content Container: Table View vs Kanban View ── -->
+{% if tasks %}
+
+  <!-- VIEW 1: Modern Table View -->
+  <div id="tableViewContainer">
+    <div class="card border-0 shadow-sm">
+      <div class="table-responsive">
+        <table class="table table-custom align-middle">
+          <thead>
+            <tr>
+              <th>Task Name</th>
+              <th>Type</th>
+              <th>Deadline</th>
+              <th>Priority</th>
+              <th class="text-center">Score</th>
+              <th>Status</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for task in tasks %}
+            <tr class="clickable-row" data-href="{{ url_for('task_detail', task_id=task.task_id) }}">
+              
+              <!-- Task Title & Snippet -->
+              <td>
+                <a href="{{ url_for('task_detail', task_id=task.task_id) }}" class="fw-bold text-decoration-none text-main d-block">
+                  {{ task.title }}
+                </a>
+                {% if task.description %}
+                  <div class="text-muted small text-truncate" style="max-width: 260px;">
+                    {{ task.description }}
+                  </div>
+                {% endif %}
+              </td>
+
+              <!-- Task Type -->
+              <td>
+                <span class="badge bg-surface-subtle text-secondary border small">
+                  {{ task.task_type }}
+                </span>
+              </td>
+
+              <!-- Deadline -->
+              <td>
+                <div class="font-mono small">{{ task.deadline }}</div>
+                {% set today = now_date %}
+                {% if task.status not in ['Completed','Cancelled'] and task.deadline < today %}
+                  <span class="badge bg-danger text-white small" style="font-size: 0.65rem;">
+                    <i class="bi bi-exclamation-circle me-1"></i>Overdue
+                  </span>
+                {% elif task.deadline == today %}
+                  <span class="badge bg-warning text-dark small" style="font-size: 0.65rem;">
+                    Due Today
+                  </span>
+                {% endif %}
+              </td>
+
+              <!-- Priority Badge -->
+              <td>
+                {% if task.priority_label %}
+                  <span class="priority-badge priority-badge-{{ task.priority_label|lower }}">
+                    {{ task.priority_label }}
+                  </span>
+                {% else %}
+                  <span class="text-muted small">No prediction</span>
+                {% endif %}
+              </td>
+
+              <!-- Priority Score -->
+              <td class="text-center">
+                {% if task.priority_score is not none %}
+                  <span class="score-badge
+                    {% if task.priority_score >= 80 %}score-critical
+                    {% elif task.priority_score >= 60 %}score-high
+                    {% elif task.priority_score >= 40 %}score-medium
+                    {% else %}score-low{% endif %}">
+                    {{ task.priority_score }}
+                  </span>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+
+              <!-- Status -->
+              <td>
+                {% set st = task.status|lower|replace(' ', '') %}
+                <span class="status-pill status-{{ st }}">
+                  {{ task.status }}
+                </span>
+              </td>
+
+              <!-- Actions -->
+              <td class="text-end">
+                <div class="btn-group btn-group-sm">
+                  <a href="{{ url_for('task_detail', task_id=task.task_id) }}" class="btn btn-outline-secondary" title="View details">
+                    <i class="bi bi-eye"></i>
+                  </a>
+                  <a href="{{ url_for('task_edit', task_id=task.task_id) }}" class="btn btn-outline-primary" title="Edit task">
+                    <i class="bi bi-pencil"></i>
+                  </a>
+                  <button type="button" class="btn btn-outline-danger btn-delete" title="Delete task"
+                          data-task-id="{{ task.task_id }}"
+                          data-task-name="{{ task.title|e }}">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- VIEW 2: Interactive Kanban Board View -->
+  <div id="kanbanViewContainer" class="d-none">
+    <div class="kanban-board">
+      
+      <!-- Critical Column -->
+      <div class="kanban-col">
+        <div class="kanban-col-header">
+          <div class="d-flex align-items-center gap-2">
+            <span class="d-inline-block rounded-circle" style="width: 10px; height: 10px; background: var(--p-critical);"></span>
+            <span class="fw-bold small text-uppercase" style="color: var(--p-critical);">Critical</span>
+          </div>
+          <span class="badge bg-surface text-main border rounded-pill font-mono small" id="count-critical">0</span>
+        </div>
+        <div class="kanban-cards-wrapper" data-priority="Critical">
+          {% for task in tasks %}
+            {% if task.priority_label == 'Critical' %}
+              {% include "kanban_card.html" ignore missing %}
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- High Column -->
+      <div class="kanban-col">
+        <div class="kanban-col-header">
+          <div class="d-flex align-items-center gap-2">
+            <span class="d-inline-block rounded-circle" style="width: 10px; height: 10px; background: var(--p-high);"></span>
+            <span class="fw-bold small text-uppercase" style="color: var(--p-high);">High</span>
+          </div>
+          <span class="badge bg-surface text-main border rounded-pill font-mono small" id="count-high">0</span>
+        </div>
+        <div class="kanban-cards-wrapper" data-priority="High">
+          {% for task in tasks %}
+            {% if task.priority_label == 'High' %}
+              {% include "kanban_card.html" ignore missing %}
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Medium Column -->
+      <div class="kanban-col">
+        <div class="kanban-col-header">
+          <div class="d-flex align-items-center gap-2">
+            <span class="d-inline-block rounded-circle" style="width: 10px; height: 10px; background: var(--p-medium);"></span>
+            <span class="fw-bold small text-uppercase" style="color: var(--p-medium);">Medium</span>
+          </div>
+          <span class="badge bg-surface text-main border rounded-pill font-mono small" id="count-medium">0</span>
+        </div>
+        <div class="kanban-cards-wrapper" data-priority="Medium">
+          {% for task in tasks %}
+            {% if task.priority_label == 'Medium' %}
+              {% include "kanban_card.html" ignore missing %}
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Low / Unclassified Column -->
+      <div class="kanban-col">
+        <div class="kanban-col-header">
+          <div class="d-flex align-items-center gap-2">
+            <span class="d-inline-block rounded-circle" style="width: 10px; height: 10px; background: var(--p-low);"></span>
+            <span class="fw-bold small text-uppercase" style="color: var(--p-low);">Low / Other</span>
+          </div>
+          <span class="badge bg-surface text-main border rounded-pill font-mono small" id="count-low">0</span>
+        </div>
+        <div class="kanban-cards-wrapper" data-priority="Low">
+          {% for task in tasks %}
+            {% if task.priority_label not in ['Critical', 'High', 'Medium'] %}
+              {% include "kanban_card.html" ignore missing %}
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Hidden delete forms for each task -->
+  {% for task in tasks %}
+  <form id="delete-form-{{ task.task_id }}"
+        method="POST"
+        action="{{ url_for('task_delete', task_id=task.task_id) }}"
+        class="d-none">
+  </form>
+  {% endfor %}
+
+{% else %}
+  <!-- Empty State -->
+  <div class="card border-0 shadow-sm">
+    <div class="card-body text-center py-5">
+      <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3" style="width: 72px; height: 72px; background: var(--bg-surface-subtle); color: var(--text-muted);">
+        <i class="bi bi-inbox fs-1"></i>
+      </div>
+      <h5 class="fw-bold mb-1">No tasks found</h5>
+      <p class="text-muted small mb-4" style="max-width: 380px; margin: 0 auto;">
+        {% if search or status_filter or priority_filter %}
+          We couldn't find any tasks matching your active filter criteria. Try resetting your search filters.
+        {% else %}
+          You don't have any active tasks in your workspace yet. Create your first task to get priority recommendations.
+        {% endif %}
+      </p>
+      {% if search or status_filter or priority_filter %}
+        <a href="{{ url_for('task_list') }}" class="btn btn-outline-secondary btn-sm me-2">
+          <i class="bi bi-x-circle me-1"></i>Clear Filters
+        </a>
+      {% endif %}
+      <a href="{{ url_for('task_create') }}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg me-1"></i>Create your first task
+      </a>
+    </div>
+  </div>
+{% endif %}
+
+<!-- ── Delete Confirmation Modal ── -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg" style="border-radius: var(--radius-lg);">
+      <div class="modal-header border-0 pb-0">
+        <div class="d-flex align-items-center gap-2 text-danger">
+          <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 36px; height: 36px; background: rgba(239, 68, 68, 0.15);">
+            <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+          </div>
+          <h5 class="modal-title fw-bold mb-0">Confirm Deletion</h5>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body py-3">
+        <p class="mb-2">Are you sure you want to permanently delete this task?</p>
+        <div class="p-3 rounded-3 border bg-surface-subtle">
+          <strong id="deleteTaskName" class="text-main"></strong>
+        </div>
+        <div class="text-muted small mt-2">
+          <i class="bi bi-info-circle me-1"></i>This action cannot be undone and will delete all associated predictions.
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger btn-sm px-3" id="confirmDeleteBtn">Delete Task</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Clickable table rows
+  document.querySelectorAll(".clickable-row").forEach(row => {
+    row.addEventListener("click", (e) => {
+      if (!e.target.closest('a') && !e.target.closest('button')) {
+        window.location = row.dataset.href;
+      }
+    });
+  });
+
+  // Delete modal management
+  let deleteTaskId = null;
+  const deleteModalEl = document.getElementById("deleteModal");
+  const deleteModal = deleteModalEl ? new bootstrap.Modal(deleteModalEl) : null;
+
+  // Use event delegation on all delete buttons (avoids inline onclick + quote escaping issues)
+  document.querySelectorAll(".btn-delete").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      deleteTaskId = btn.dataset.taskId;
+      document.getElementById("deleteTaskName").textContent = btn.dataset.taskName;
+      if (deleteModal) deleteModal.show();
+    });
+  });
+
+  function confirmDelete(taskId, taskName) {
+    deleteTaskId = taskId;
+    document.getElementById("deleteTaskName").textContent = taskName;
+    if (deleteModal) deleteModal.show();
+  }
+
+  const confirmDeleteBtn = document.getElementById("confirmDeleteBtn");
+  if (confirmDeleteBtn) {
+    confirmDeleteBtn.addEventListener("click", () => {
+      if (deleteTaskId) {
+        document.getElementById("delete-form-" + deleteTaskId).submit();
+      }
+    });
+  }
+
+  // View Switcher (Table vs Kanban)
+  const tableViewBtn = document.getElementById("tableViewBtn");
+  const kanbanViewBtn = document.getElementById("kanbanViewBtn");
+  const tableViewContainer = document.getElementById("tableViewContainer");
+  const kanbanViewContainer = document.getElementById("kanbanViewContainer");
+
+  function setView(view) {
+    if (view === "kanban") {
+      tableViewContainer.classList.add("d-none");
+      kanbanViewContainer.classList.remove("d-none");
+      kanbanViewBtn.classList.add("active");
+      tableViewBtn.classList.remove("active");
+      localStorage.setItem("tasks_view", "kanban");
+      populateKanbanCards();
+    } else {
+      tableViewContainer.classList.remove("d-none");
+      kanbanViewContainer.classList.add("d-none");
+      tableViewBtn.classList.add("active");
+      kanbanViewBtn.classList.remove("active");
+      localStorage.setItem("tasks_view", "table");
+    }
+  }
+
+  if (tableViewBtn && kanbanViewBtn) {
+    tableViewBtn.addEventListener("click", () => setView("table"));
+    kanbanViewBtn.addEventListener("click", () => setView("kanban"));
+    
+    // Remember user preference
+    const savedView = localStorage.getItem("tasks_view");
+    if (savedView === "kanban") {
+      setView("kanban");
+    }
+  }
+
+  // Populate Kanban view from table data dynamically if needed
+  function populateKanbanCards() {
+    const counts = { Critical: 0, High: 0, Medium: 0, Low: 0 };
+    document.querySelectorAll(".kanban-cards-wrapper").forEach(wrapper => {
+      const priority = wrapper.dataset.priority;
+      wrapper.innerHTML = "";
+    });
+
+    // Traverse table rows and create kanban cards
+    document.querySelectorAll(".clickable-row").forEach(row => {
+      const title = row.querySelector("a.fw-bold").textContent.trim();
+      const desc = row.querySelector(".text-muted.small") ? row.querySelector(".text-muted.small").textContent.trim() : "";
+      const deadline = row.querySelector(".font-mono").textContent.trim();
+      const priorityBadge = row.querySelector(".priority-badge");
+      const priority = priorityBadge ? priorityBadge.textContent.trim() : "Low";
+      const score = row.querySelector(".score-badge") ? row.querySelector(".score-badge").textContent.trim() : "—";
+      const statusPill = row.querySelector(".status-pill").textContent.trim();
+      const href = row.dataset.href;
+
+      let targetPriority = "Low";
+      if (priority === "Critical") targetPriority = "Critical";
+      else if (priority === "High") targetPriority = "High";
+      else if (priority === "Medium") targetPriority = "Medium";
+
+      counts[targetPriority] = (counts[targetPriority] || 0) + 1;
+
+      const card = document.createElement("div");
+      card.className = "kanban-card";
+      card.onclick = () => window.location = href;
+      card.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <span class="badge bg-surface-subtle text-muted border font-mono small">${deadline}</span>
+          <span class="score-badge score-${targetPriority.toLowerCase()} py-0 px-2 small">${score}</span>
+        </div>
+        <h6 class="fw-bold text-main mb-1">${title}</h6>
+        ${desc ? `<p class="text-muted small text-truncate mb-2">${desc}</p>` : ''}
+        <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top">
+          <span class="status-pill small">${statusPill}</span>
+          <span class="text-primary small fw-semibold">View <i class="bi bi-arrow-right"></i></span>
+        </div>
+      `;
+
+      const wrapper = document.querySelector(`.kanban-cards-wrapper[data-priority="${targetPriority}"]`);
+      if (wrapper) wrapper.appendChild(card);
+    });
+
+    // Update column counters
+    document.getElementById("count-critical").textContent = counts["Critical"] || 0;
+    document.getElementById("count-high").textContent = counts["High"] || 0;
+    document.getElementById("count-medium").textContent = counts["Medium"] || 0;
+    document.getElementById("count-low").textContent = counts["Low"] || 0;
+  }
+</script>
+{% endblock %}

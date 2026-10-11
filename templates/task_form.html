@@ -1,0 +1,477 @@
+{% extends "base.html" %}
+{% block title %}{% if action == 'edit' %}Edit Task{% else %}New Task{% endif %} – Smart Task Priority Predictor{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4 gap-2">
+  <a href="{{ url_for('task_list') }}" class="btn btn-sm btn-outline-secondary" title="Back to task list">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <div>
+    <h2 class="fw-bold mb-0">
+      {% if action == 'edit' %}
+        <i class="bi bi-pencil-square text-primary me-2"></i>Edit Task
+      {% else %}
+        <i class="bi bi-plus-circle text-primary me-2"></i>New Task
+      {% endif %}
+    </h2>
+    <p class="text-muted small mb-0">
+      {% if action == 'edit' %}
+        Update task parameters and re-run machine learning priority prediction.
+      {% else %}
+        Define task drivers and view real-time priority prediction before saving.
+      {% endif %}
+    </p>
+  </div>
+</div>
+
+<div class="row g-4">
+
+  <!-- ── Left Column: Form Fields ── -->
+  <div class="col-lg-7">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-4">
+        
+        <form method="POST"
+              action="{% if action == 'edit' %}{{ url_for('task_edit', task_id=task_id) }}{% else %}{{ url_for('task_create') }}{% endif %}"
+              novalidate id="taskForm">
+
+          <!-- Section 1: Basic Information -->
+          <div class="mb-4">
+            <h6 class="fw-bold text-uppercase text-muted small letter-spacing-1 mb-3">
+              <i class="bi bi-card-text text-primary me-1"></i> 1. Basic Information
+            </h6>
+            
+            <div class="mb-3">
+              <label for="title" class="form-label">
+                Task Name <span class="text-danger">*</span>
+              </label>
+              <input type="text" class="form-control" id="title" name="title"
+                     value="{{ task.title if task else '' }}"
+                     placeholder="e.g. Implement OAuth2 Authentication Flow" required autofocus />
+            </div>
+
+            <div class="mb-0">
+              <label for="description" class="form-label">
+                Description <span class="text-muted small fw-normal">(Optional context)</span>
+              </label>
+              <textarea class="form-control" id="description" name="description"
+                        rows="2" placeholder="Provide background details, user story, or acceptance criteria...">{{ task.description if task else '' }}</textarea>
+            </div>
+          </div>
+
+          <hr class="my-4" style="border-color: var(--border-color);" />
+
+          <!-- Section 2: Timing & Classification -->
+          <div class="mb-4">
+            <h6 class="fw-bold text-uppercase text-muted small letter-spacing-1 mb-3">
+              <i class="bi bi-calendar-event text-primary me-1"></i> 2. Schedule &amp; Classification
+            </h6>
+
+            <div class="row g-3">
+              <!-- Deadline -->
+              <div class="col-md-6">
+                <label for="deadline" class="form-label">
+                  Deadline <span class="text-danger">*</span>
+                </label>
+                <input type="date" class="form-control font-mono" id="deadline" name="deadline"
+                       value="{{ task.deadline if task else '' }}"
+                       min="{{ today }}" required />
+                <div class="d-flex gap-1 mt-2">
+                  <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 small quick-date-btn" data-days="1">+1 Day</button>
+                  <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 small quick-date-btn" data-days="3">+3 Days</button>
+                  <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 small quick-date-btn" data-days="7">+1 Week</button>
+                  <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 small quick-date-btn" data-days="14">+2 Weeks</button>
+                </div>
+              </div>
+
+              <!-- Task Type -->
+              <div class="col-md-3">
+                <label for="task_type" class="form-label">
+                  Task Type <span class="text-danger">*</span>
+                </label>
+                <select class="form-select" id="task_type" name="task_type" required>
+                  {% for t in task_types %}
+                    <option value="{{ t }}"
+                      {% if task and task.task_type == t %}selected{% endif %}>
+                      {{ t }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <!-- Status -->
+              <div class="col-md-3">
+                <label for="status" class="form-label">
+                  Status <span class="text-danger">*</span>
+                </label>
+                <select class="form-select" id="status" name="status" required>
+                  {% for s in statuses %}
+                    <option value="{{ s }}"
+                      {% if task and task.status == s %}selected
+                      {% elif not task and s == 'Not Started' %}selected{% endif %}>
+                      {{ s }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <hr class="my-4" style="border-color: var(--border-color);" />
+
+          <!-- Section 3: Priority Drivers -->
+          <div class="mb-4">
+            <h6 class="fw-bold text-uppercase text-muted small letter-spacing-1 mb-3">
+              <i class="bi bi-sliders text-primary me-1"></i> 3. Priority Assessment Drivers
+            </h6>
+
+            <!-- Business Impact Slider -->
+            <div class="mb-4 p-3 rounded-3" style="background: var(--bg-surface-subtle);">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <label for="business_impact" class="form-label mb-0">
+                  Business Impact <span class="text-danger">*</span>
+                </label>
+                <span class="slider-val-badge" id="biValDisplay">{{ task.business_impact if task else '5' }} / 10</span>
+              </div>
+              <input type="range" class="modern-range" id="business_impact" name="business_impact"
+                     min="1" max="10" value="{{ task.business_impact if task else '5' }}" required />
+              <div class="d-flex justify-content-between small text-muted mt-1">
+                <span>1 (Minor / Internal)</span>
+                <span id="biDescriptor" class="fw-semibold text-primary">Moderate Impact</span>
+                <span>10 (Revenue Critical)</span>
+              </div>
+            </div>
+
+            <!-- Urgency Slider -->
+            <div class="mb-4 p-3 rounded-3" style="background: var(--bg-surface-subtle);">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <label for="urgency" class="form-label mb-0">
+                  Urgency Level <span class="text-danger">*</span>
+                </label>
+                <span class="slider-val-badge" id="urgValDisplay">{{ task.urgency if task else '5' }} / 10</span>
+              </div>
+              <input type="range" class="modern-range" id="urgency" name="urgency"
+                     min="1" max="10" value="{{ task.urgency if task else '5' }}" required />
+              <div class="d-flex justify-content-between small text-muted mt-1">
+                <span>1 (Flexible)</span>
+                <span id="urgDescriptor" class="fw-semibold text-primary">Standard Urgency</span>
+                <span>10 (Drop Everything)</span>
+              </div>
+            </div>
+
+            <div class="row g-3">
+              <!-- Estimated Effort -->
+              <div class="col-md-6">
+                <label for="estimated_effort" class="form-label">
+                  Estimated Effort (hours) <span class="text-danger">*</span>
+                </label>
+                <div class="input-group">
+                  <input type="number" class="form-control font-mono" id="estimated_effort"
+                         name="estimated_effort" min="0.1" step="0.5"
+                         value="{{ task.estimated_effort if task else '4' }}" required />
+                  <span class="input-group-text text-muted">hrs</span>
+                </div>
+                <div class="d-flex gap-1 mt-2">
+                  <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 small quick-effort-btn" data-hours="1">1h (Quick Win)</button>
+                  <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 small quick-effort-btn" data-hours="4">4h (Half-day)</button>
+                  <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 small quick-effort-btn" data-hours="8">8h (1 Day)</button>
+                  <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 small quick-effort-btn" data-hours="24">24h (Large)</button>
+                </div>
+              </div>
+
+              <!-- Dependency Count -->
+              <div class="col-md-6">
+                <label for="dependency_count" class="form-label">
+                  Blocked Dependencies
+                </label>
+                <div class="input-group">
+                  <input type="number" class="form-control font-mono" id="dependency_count"
+                         name="dependency_count" min="0"
+                         value="{{ task.dependency_count if task else '0' }}" required />
+                  <span class="input-group-text text-muted">tasks</span>
+                </div>
+                <div class="form-text">Downstream tasks waiting on this to complete.</div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Submit Buttons -->
+          <div class="d-flex align-items-center gap-2 mt-4 pt-3 border-top" style="border-color: var(--border-color);">
+            <button type="submit" class="btn btn-primary px-4">
+              <i class="bi bi-lightning-charge-fill me-1"></i>
+              {% if action == 'edit' %}Save &amp; Re-predict{% else %}Create &amp; Predict Priority{% endif %}
+            </button>
+            <a href="{{ url_for('task_list') }}" class="btn btn-outline-secondary">
+              Cancel
+            </a>
+          </div>
+
+        </form>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Right Column: Live Real-time AI Priority Simulator ── -->
+  <div class="col-lg-5">
+    <div class="simulator-panel">
+      
+      <div class="simulator-header">
+        <div>
+          <h5 class="fw-bold mb-0 fs-6">
+            <i class="bi bi-cpu text-primary me-2"></i>Live Priority Simulator
+          </h5>
+          <span class="text-muted small">Real-time model prediction engine</span>
+        </div>
+        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill small">
+          Active
+        </span>
+      </div>
+
+      <!-- Circular SVG Score Meter -->
+      <div class="simulator-score-circle">
+        <svg width="140" height="140" viewBox="0 0 140 140">
+          <circle cx="70" cy="70" r="58" fill="none" stroke="var(--border-color)" stroke-width="10" />
+          <circle id="scoreProgressCircle" cx="70" cy="70" r="58" fill="none"
+                  stroke="var(--p-medium)" stroke-width="10" stroke-linecap="round"
+                  stroke-dasharray="364.4" stroke-dashoffset="150"
+                  style="transition: stroke-dashoffset 0.4s ease, stroke 0.4s ease;" />
+        </svg>
+        <div class="simulator-score-text">
+          <div class="simulator-score-num" id="liveScoreNum">55</div>
+          <div class="simulator-score-label">Points</div>
+        </div>
+      </div>
+
+      <!-- Priority Tier Badge -->
+      <div class="text-center mb-4">
+        <span class="priority-badge priority-badge-medium fs-6 py-1 px-3" id="livePriorityBadge">
+          Medium Priority
+        </span>
+      </div>
+
+      <!-- Score Breakdown Itemization -->
+      <div class="p-3 rounded-3 mb-3" style="background: var(--bg-surface-subtle);">
+        <h6 class="fw-bold small text-muted text-uppercase mb-2 letter-spacing-1">
+          Formula Points Breakdown
+        </h6>
+
+        <div class="breakdown-row">
+          <span>Business Impact (×4)</span>
+          <strong class="font-mono text-main" id="breakdownBI">+20 pts</strong>
+        </div>
+
+        <div class="breakdown-row">
+          <span>Urgency Level (×3)</span>
+          <strong class="font-mono text-main" id="breakdownUrg">+15 pts</strong>
+        </div>
+
+        <div class="breakdown-row">
+          <span>Dependencies (×2)</span>
+          <strong class="font-mono text-main" id="breakdownDep">+0 pts</strong>
+        </div>
+
+        <div class="breakdown-row">
+          <span>Deadline Urgency</span>
+          <strong class="font-mono text-main" id="breakdownDeadline">+10 pts</strong>
+        </div>
+
+        <div class="breakdown-row">
+          <span>Effort Adjustment</span>
+          <strong class="font-mono" id="breakdownEffort">0 pts</strong>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center pt-2 mt-2 border-top">
+          <span class="fw-bold small">Total Predicted Score</span>
+          <span class="font-mono fw-bold fs-6 text-primary" id="breakdownTotal">55 / 100</span>
+        </div>
+      </div>
+
+      <!-- Decision Tree Explanation Hint -->
+      <div class="small text-muted p-2 rounded-2 border" style="background: var(--bg-surface); border-color: var(--border-color) !important;">
+        <i class="bi bi-info-circle text-primary me-1"></i>
+        Tasks with score <strong>&ge;80</strong> are classified as <strong>Critical</strong>; <strong>60–79</strong> as <strong>High</strong>; <strong>40–59</strong> as <strong>Medium</strong>; <strong>0–39</strong> as <strong>Low</strong>.
+      </div>
+
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // DOM Elements for form controls
+  const deadlineInput = document.getElementById('deadline');
+  const biInput = document.getElementById('business_impact');
+  const biValDisplay = document.getElementById('biValDisplay');
+  const biDescriptor = document.getElementById('biDescriptor');
+
+  const urgInput = document.getElementById('urgency');
+  const urgValDisplay = document.getElementById('urgValDisplay');
+  const urgDescriptor = document.getElementById('urgDescriptor');
+
+  const effortInput = document.getElementById('estimated_effort');
+  const depInput = document.getElementById('dependency_count');
+
+  // Simulator DOM Elements
+  const liveScoreNum = document.getElementById('liveScoreNum');
+  const scoreCircle = document.getElementById('scoreProgressCircle');
+  const livePriorityBadge = document.getElementById('livePriorityBadge');
+  const breakdownBI = document.getElementById('breakdownBI');
+  const breakdownUrg = document.getElementById('breakdownUrg');
+  const breakdownDep = document.getElementById('breakdownDep');
+  const breakdownDeadline = document.getElementById('breakdownDeadline');
+  const breakdownEffort = document.getElementById('breakdownEffort');
+  const breakdownTotal = document.getElementById('breakdownTotal');
+
+  // Quick Date Buttons
+  document.querySelectorAll('.quick-date-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const days = parseInt(btn.dataset.days, 10);
+      const targetDate = new Date();
+      targetDate.setDate(targetDate.getDate() + days);
+      deadlineInput.value = targetDate.toISOString().split('T')[0];
+      calculateLiveScore();
+    });
+  });
+
+  // Quick Effort Buttons
+  document.querySelectorAll('.quick-effort-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      effortInput.value = btn.dataset.hours;
+      calculateLiveScore();
+    });
+  });
+
+  // Business Impact descriptors
+  function updateBIDescriptor(val) {
+    biValDisplay.textContent = `${val} / 10`;
+    if (val >= 9) biDescriptor.textContent = "Revenue & Mission Critical";
+    else if (val >= 7) biDescriptor.textContent = "High Business Value";
+    else if (val >= 4) biDescriptor.textContent = "Moderate Business Value";
+    else biDescriptor.textContent = "Low / Minor Operational";
+  }
+
+  // Urgency descriptors
+  function updateUrgDescriptor(val) {
+    urgValDisplay.textContent = `${val} / 10`;
+    if (val >= 9) urgDescriptor.textContent = "Immediate Action (Emergency)";
+    else if (val >= 7) urgDescriptor.textContent = "High Urgency Priority";
+    else if (val >= 4) urgDescriptor.textContent = "Standard Project Timeline";
+    else urgDescriptor.textContent = "Flexible / Low Urgency";
+  }
+
+  // Exact math from project's preprocessing.py
+  function calculateLiveScore() {
+    const bi = parseInt(biInput.value || 5, 10);
+    const urg = parseInt(urgInput.value || 5, 10);
+    const effort = parseFloat(effortInput.value || 4.0);
+    const dep = parseInt(depInput.value || 0, 10);
+    const deadlineVal = deadlineInput.value;
+
+    updateBIDescriptor(bi);
+    updateUrgDescriptor(urg);
+
+    // Business Impact points
+    const biPoints = bi * 4;
+    // Urgency points
+    const urgPoints = urg * 3;
+    // Dependency points
+    const depPoints = dep * 2;
+
+    // Deadline points calculation
+    let deadlinePoints = 10;
+    if (deadlineVal) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dl = new Date(deadlineVal + "T00:00:00");
+      const diffTime = dl - today;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays < 0) deadlinePoints = 20; // Overdue
+      else if (diffDays <= 2) deadlinePoints = 15;
+      else if (diffDays <= 7) deadlinePoints = 10;
+      else if (diffDays <= 14) deadlinePoints = 7;
+      else deadlinePoints = 3;
+    }
+
+    // Effort adjustment
+    let effortMod = 0;
+    if (effort < 3.0) effortMod = 5; // Quick win bonus
+    else if (effort > 20.0) effortMod = -5; // Large effort penalty
+
+    // Total raw score clamped 0..100
+    let totalScore = biPoints + urgPoints + depPoints + deadlinePoints + effortMod;
+    totalScore = Math.max(0, Math.min(100, Math.round(totalScore)));
+
+    // Label determination
+    let label = "Low";
+    let colorVar = "var(--p-low)";
+    let badgeClass = "priority-badge-low";
+
+    if (totalScore >= 80) {
+      label = "Critical";
+      colorVar = "var(--p-critical)";
+      badgeClass = "priority-badge-critical";
+    } else if (totalScore >= 60) {
+      label = "High";
+      colorVar = "var(--p-high)";
+      badgeClass = "priority-badge-high";
+    } else if (totalScore >= 40) {
+      label = "Medium";
+      colorVar = "var(--p-medium)";
+      badgeClass = "priority-badge-medium";
+    }
+
+    // Update Simulator UI
+    liveScoreNum.textContent = totalScore;
+    liveScoreNum.style.color = colorVar;
+
+    // SVG stroke-dashoffset (Circumference of r=58 is 364.4)
+    const circumference = 364.4;
+    const offset = circumference - (totalScore / 100) * circumference;
+    scoreCircle.style.strokeDashoffset = offset;
+    scoreCircle.style.stroke = colorVar;
+
+    livePriorityBadge.className = `priority-badge ${badgeClass} fs-6 py-1 px-3`;
+    livePriorityBadge.textContent = `${label} Priority`;
+
+    // Itemized breakdown update
+    breakdownBI.textContent = `+${biPoints} pts`;
+    breakdownUrg.textContent = `+${urgPoints} pts`;
+    breakdownDep.textContent = `+${depPoints} pts`;
+    breakdownDeadline.textContent = `+${deadlinePoints} pts`;
+
+    if (effortMod > 0) {
+      breakdownEffort.textContent = `+${effortMod} pts (Quick Win)`;
+      breakdownEffort.className = "font-mono text-success";
+    } else if (effortMod < 0) {
+      breakdownEffort.textContent = `${effortMod} pts (High Effort)`;
+      breakdownEffort.className = "font-mono text-danger";
+    } else {
+      breakdownEffort.textContent = "0 pts";
+      breakdownEffort.className = "font-mono text-muted";
+    }
+
+    breakdownTotal.textContent = `${totalScore} / 100`;
+  }
+
+  // Bind input listeners
+  [biInput, urgInput, effortInput, depInput, deadlineInput].forEach(elem => {
+    elem.addEventListener('input', calculateLiveScore);
+    elem.addEventListener('change', calculateLiveScore);
+  });
+
+  // Default deadline if empty
+  if (!deadlineInput.value) {
+    const nextWeek = new Date();
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    deadlineInput.value = nextWeek.toISOString().split('T')[0];
+  }
+
+  // Initial calculation
+  calculateLiveScore();
+</script>
+{% endblock %}

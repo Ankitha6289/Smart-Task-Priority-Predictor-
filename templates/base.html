@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Smart Task Priority Predictor{% endblock %}</title>
+  
+  <!-- Pre-render theme initialization -->
+  <script>
+    (function() {
+      const savedTheme = localStorage.getItem('theme') || 
+        (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-bs-theme', savedTheme);
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    })();
+  </script>
+
+  <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Bootstrap 5 & Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  
+  <!-- Custom Modern Design System -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<!-- ── Navigation Bar ── -->
+{% if current_user %}
+<nav class="navbar navbar-expand-lg navbar-custom">
+  <div class="container-fluid">
+    <a class="brand-wrapper" href="{{ url_for('dashboard') }}">
+      <div class="brand-icon-box">
+        <i class="bi bi-cpu-fill"></i>
+      </div>
+      <div>
+        <div class="brand-title">Task Priority Predictor</div>
+        <span class="brand-badge">ML Intelligence Engine</span>
+      </div>
+    </a>
+
+    <button class="navbar-toggler border-0 shadow-none text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu" aria-controls="navMenu" aria-expanded="false" aria-label="Toggle navigation">
+      <i class="bi bi-list fs-2"></i>
+    </button>
+
+    <div class="collapse navbar-collapse" id="navMenu">
+      <ul class="navbar-nav mx-auto mb-2 mb-lg-0 gap-1">
+        <li class="nav-item">
+          <a class="nav-pill-item {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+            <i class="bi bi-speedometer2"></i>
+            <span>Dashboard</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-pill-item {% if request.endpoint in ['task_list'] %}active{% endif %}" href="{{ url_for('task_list') }}">
+            <i class="bi bi-kanban"></i>
+            <span>My Tasks</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-pill-item {% if request.endpoint == 'task_create' %}active{% endif %}" href="{{ url_for('task_create') }}">
+            <i class="bi bi-plus-circle-dotted"></i>
+            <span>New Task</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-pill-item {% if request.endpoint == 'batch_predict' %}active{% endif %}" href="{{ url_for('batch_predict') }}">
+            <i class="bi bi-file-earmark-arrow-up"></i>
+            <span>Batch Predict</span>
+          </a>
+        </li>
+      </ul>
+
+      <div class="d-flex align-items-center gap-2 mt-3 mt-lg-0">
+        <!-- Theme Switcher Button -->
+        <button type="button" class="theme-toggle-btn" id="themeToggleBtn" title="Toggle Light/Dark Theme" aria-label="Toggle theme">
+          <i class="bi bi-moon-stars" id="themeIcon"></i>
+        </button>
+
+        <!-- User Profile Dropdown -->
+        <div class="dropdown">
+          <button class="user-avatar-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <span class="avatar-circle">
+              {{ current_user['name'][:1]|upper if current_user['name'] else 'U' }}
+            </span>
+            <span class="d-none d-sm-inline">{{ current_user['name'] }}</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 py-2" style="border-radius: var(--radius-md);">
+            <li class="px-3 py-1 text-muted small">Signed in as<br><strong class="text-main">{{ current_user['email'] }}</strong></li>
+            <li><hr class="dropdown-divider my-2"></li>
+            <li>
+              <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="{{ url_for('dashboard') }}">
+                <i class="bi bi-grid text-primary"></i> Dashboard
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="{{ url_for('task_list') }}">
+                <i class="bi bi-list-check text-primary"></i> My Tasks
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="{{ url_for('task_create') }}">
+                <i class="bi bi-plus-circle text-primary"></i> Create Task
+              </a>
+            </li>
+            <li><hr class="dropdown-divider my-2"></li>
+            <li>
+              <a class="dropdown-item d-flex align-items-center gap-2 py-2 text-danger fw-semibold" href="{{ url_for('logout') }}">
+                <i class="bi bi-box-arrow-right"></i> Logout
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</nav>
+{% endif %}
+
+<!-- ── Flash Toast Messages ── -->
+<div class="container mt-3">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        {% set icon = 'bi-info-circle-fill' %}
+        {% if category == 'success' %}{% set icon = 'bi-check-circle-fill' %}
+        {% elif category == 'danger' %}{% set icon = 'bi-exclamation-octagon-fill' %}
+        {% elif category == 'warning' %}{% set icon = 'bi-exclamation-triangle-fill' %}
+        {% endif %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show toast-alert shadow-sm" role="alert">
+          <i class="bi {{ icon }} fs-5"></i>
+          <div class="flex-grow-1">{{ message }}</div>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+</div>
+
+<!-- ── Main Application Content ── -->
+<main class="container my-4">
+  {% block content %}{% endblock %}
+</main>
+
+<!-- ── Modern App Footer ── -->
+<footer class="mt-auto py-4 border-top" style="border-color: var(--border-color) !important; background: var(--bg-surface);">
+  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2 small text-muted">
+    <div class="d-flex align-items-center gap-2">
+      <span class="d-inline-block rounded-circle bg-success" style="width: 8px; height: 8px;"></span>
+      <span>Decision Tree Model (90.5% Accuracy) &bull; Operational</span>
+    </div>
+    <div>
+      Smart Task Priority Predictor &copy; 2026 &bull; AI-Powered Decision Support
+    </div>
+  </div>
+</footer>
+
+<!-- ── Scripts ── -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  // Theme Toggle Controller
+  const themeToggleBtn = document.getElementById('themeToggleBtn');
+  const themeIcon = document.getElementById('themeIcon');
+
+  function updateThemeUI(theme) {
+    document.documentElement.setAttribute('data-bs-theme', theme);
+    document.documentElement.setAttribute('data-theme', theme);
+    if (themeIcon) {
+      if (theme === 'dark') {
+        themeIcon.className = 'bi bi-sun-fill text-warning';
+      } else {
+        themeIcon.className = 'bi bi-moon-stars text-secondary';
+      }
+    }
+  }
+
+  // Initialize theme icon on page load
+  const currentTheme = document.documentElement.getAttribute('data-bs-theme') || 'light';
+  updateThemeUI(currentTheme);
+
+  if (themeToggleBtn) {
+    themeToggleBtn.addEventListener('click', () => {
+      const activeTheme = document.documentElement.getAttribute('data-bs-theme');
+      const nextTheme = activeTheme === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('theme', nextTheme);
+      updateThemeUI(nextTheme);
+    });
+  }
+
+  // Auto-dismiss alerts after 5 seconds
+  setTimeout(() => {
+    document.querySelectorAll('.alert-dismissible').forEach(alert => {
+      const bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+      bsAlert.close();
+    });
+  }, 5000);
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
